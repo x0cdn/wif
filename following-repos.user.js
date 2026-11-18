@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Following → репозитории подписок
 // @namespace    https://github.com/x0cdn
-// @version      1.0.1
+// @version      1.0.2
 // @description  wif - What I Follow
 // @author       topsh
 // @downloadURL  https://raw.githubusercontent.com/x0cdn/wif/main/following-repos.user.js
@@ -127,6 +127,18 @@
     head.appendChild(profile);
 
     if (!error) head.appendChild(make('span', '(' + repos.length + ')', 'color:#57606a;'));
+
+    var refresh = make('a', '↻',
+      'color:#0969da;text-decoration:none;font-size:14px;cursor:pointer;');
+    refresh.href = '#';
+    refresh.title = 'Обновить список репозиториев';
+    refresh.addEventListener('click', function (ev) {
+      ev.preventDefault();
+      try { localStorage.removeItem(CACHE_PREFIX + login); } catch (e) {}
+      panel.textContent = '';
+      loadRepos(panel, login, true);
+    });
+    head.appendChild(refresh);
     panel.appendChild(head);
 
     if (error) {
@@ -223,11 +235,14 @@
     }
   }
 
-  function loadRepos(panel, login) {
+  function loadRepos(panel, login, force) {
     panel.appendChild(make('div', 'загрузка репозиториев…',
       'color:#57606a;font-size:12px;'));
 
-    var cached = readCache(login);
+    // Свои репозитории обновляются при каждой загрузке страницы,
+    // чтобы новые репо появлялись сразу, без ожидания окончания кэша
+    var alwaysFresh = panel.getAttribute('data-wif-pinned') === '1';
+    var cached = (!alwaysFresh && !force) ? readCache(login) : null;
     if (cached) {
       renderPanel(panel, login, cached, null);
       return;
@@ -235,7 +250,8 @@
 
     fetch(API + encodeURIComponent(login) + '/repos?per_page=100&sort=updated', {
       headers: { 'Accept': 'application/vnd.github+json' },
-      credentials: 'omit'
+      credentials: 'omit',
+      cache: 'no-store'
     })
       .then(function (res) {
         if (!res.ok) {
