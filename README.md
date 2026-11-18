@@ -1,11 +1,12 @@
 # wif — What I Follow
 
-Юзер-скрипт для Greasemonkey/Tampermonkey: показывает публичные репозитории и их краткие описания рядом с каждым пользователем на вкладке `following` GitHub.
+A userscript for Greasemonkey/Tampermonkey that shows public repositories and their short descriptions next to every user on GitHub's `following` tab.
 
-- Свои репозитории выводятся первым блоком.
-- Остальные подписки — адаптивные карточки в две колонки (одна на узких экранах).
-- Новые подписки обрабатываются автоматически, без перезагрузки страницы.
+- Your own repositories are always displayed first.
+- Followed users are shown as responsive cards in two columns (one column on narrow screens).
+- Each followed user's card shows up to two repositories; the rest are hidden behind a "Show more" link.
+- New followed users are handled automatically, without reloading the page.
 
-## Установка
+## Installation
 
-Откройте [following-repos.user.js](https://raw.githubusercontent.com/x0cdn/wif/main/following-repos.user.js) — Greasemonkey предложит установить скрипт. Для обновлений используется та же ссылка (`@downloadURL` / `@updateURL`).
+Open [following-repos.user.js](https://raw.githubusercontent.com/x0cdn/wif/main/following-repos.user.js) — Greasemonkey will offer to install the script. The same URL is used for updates (`@downloadURL` / `@updateURL`).

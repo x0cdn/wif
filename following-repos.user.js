@@ -1,7 +1,7 @@
 // ==UserScript==
-// @name         Following → репозитории подписок
+// @name         Following → repositories of followed users
 // @namespace    https://github.com/x0cdn
-// @version      1.0.2
+// @version      1.0.3
 // @description  wif - What I Follow
 // @author       topsh
 // @downloadURL  https://raw.githubusercontent.com/x0cdn/wif/main/following-repos.user.js
@@ -12,10 +12,11 @@
 // ==/UserScript==
 
 /*
- * Работает на https://github.com/<пользователь>?tab=following
+ * Works on https://github.com/<user>?tab=following
  *
- * Данные: GET https://api.github.com/users/<login>/repos
- * Кэш в localStorage на 6 часов (лимит API без токена — 60 запросов/час).
+ * Data source: GET https://api.github.com/users/<login>/repos
+ * Results are cached in localStorage for 6 hours
+ * (unauthenticated API limit is 60 requests per hour).
  */
 
 (function () {
@@ -23,8 +24,9 @@
 
   var API = 'https://api.github.com/users/';
   var CACHE_PREFIX = 'wif:repos:';
-  var CACHE_TTL = 6 * 60 * 60 * 1000; // 6 часов
-  var MAX_VISIBLE = 8;
+  var CACHE_TTL = 6 * 60 * 60 * 1000; // 6 hours
+  var MAX_VISIBLE = 2;               // followed users
+  var PINNED_MAX_VISIBLE = 8;        // own card keeps its current setting
 
   var parts = location.pathname.split('/').filter(Boolean);
   var ownerLogin = decodeURIComponent(parts[0] || '');
@@ -43,8 +45,8 @@
   var busy = false;
   var pinnedPanel = null;
 
-  // GitHub разрешает inline-<style> (style-src 'unsafe-inline'), поэтому
-  // медиазапросы работают и без GM_addStyle
+  // GitHub allows inline <style> (style-src 'unsafe-inline'), so media
+  // queries work without GM_addStyle
   var style = document.createElement('style');
   style.setAttribute('data-wif-style', '');
   style.textContent = [
@@ -52,8 +54,8 @@
     'gap:12px 16px;align-items:start}',
     '@media (max-width:900px){.wif-list{grid-template-columns:minmax(0,1fr)}}',
     '.wif-card{min-width:0;max-width:100%;box-sizing:border-box}',
-    // Переопределяем github-таблицу строки: фиксированная колонка аватара,
-    // чтобы имя пользователя не наезжало на него в узких карточках
+    // Override the GitHub row table: a fixed avatar column keeps user names
+    // from overlapping avatars in narrow cards
     '.wif-card>.d-table{display:flex!important;align-items:flex-start;',
     'gap:10px;width:100%!important}',
     '.wif-card>.d-table>.d-table-cell{display:block!important;float:none!important}',
@@ -104,7 +106,7 @@
     try {
       localStorage.setItem(CACHE_PREFIX + login,
         JSON.stringify({ time: Date.now(), repos: repos }));
-    } catch (e) { /* без кэша — тоже работает */ }
+    } catch (e) { /* works fine without a cache */ }
   }
 
   function renderPanel(panel, login, repos, error) {
@@ -116,7 +118,7 @@
       'display:flex;align-items:center;gap:8px;flex-wrap:wrap;' +
       'font-size:12px;line-height:1.4;margin-bottom:6px;');
 
-    head.appendChild(make('span', pinned ? '📌 Мои репозитории' : '▸ Репозитории',
+    head.appendChild(make('span', pinned ? '📌 My repositories' : '▸ Repositories',
       'font-weight:600;color:' + (pinned ? '#1a7f37' : '#57606a') + ';'));
 
     var profile = make('a', '@' + login,
@@ -131,7 +133,7 @@
     var refresh = make('a', '↻',
       'color:#0969da;text-decoration:none;font-size:14px;cursor:pointer;');
     refresh.href = '#';
-    refresh.title = 'Обновить список репозиториев';
+    refresh.title = 'Refresh repositories';
     refresh.addEventListener('click', function (ev) {
       ev.preventDefault();
       try { localStorage.removeItem(CACHE_PREFIX + login); } catch (e) {}
@@ -143,7 +145,7 @@
 
     if (error) {
       panel.appendChild(make('div', error, 'color:#cf222e;font-size:12px;padding:2px 0;'));
-      var retry = make('a', 'повторить',
+      var retry = make('a', 'retry',
         'color:#0969da;text-decoration:none;font-size:12px;cursor:pointer;');
       retry.href = '#';
       retry.addEventListener('click', function (ev) {
@@ -162,7 +164,7 @@
     }
 
     if (!repos.length) {
-      panel.appendChild(make('div', 'публичных репозиториев нет',
+      panel.appendChild(make('div', 'No public repositories',
         'color:#57606a;font-size:12px;'));
       return;
     }
@@ -179,7 +181,7 @@
 
       title.appendChild(make('span', '•', 'color:#8c959f;flex:none;'));
 
-      // Название целиком в одной строке, без обрезания
+      // Show the full repository name on a single line, without truncation
       var link = make('a', repo.name,
         'color:#0969da;text-decoration:none;font-weight:600;white-space:nowrap;');
       link.href = repo.html_url;
@@ -192,7 +194,7 @@
         title.appendChild(make('span', 'fork', 'color:#8c959f;font-size:11px;flex:none;'));
       }
       if (repo.archived) {
-        title.appendChild(make('span', 'архив', 'color:#8c959f;font-size:11px;flex:none;'));
+        title.appendChild(make('span', 'archived', 'color:#8c959f;font-size:11px;flex:none;'));
       }
       if (repo.stargazers_count > 0) {
         title.appendChild(make('span', '★ ' + repo.stargazers_count,
@@ -201,7 +203,7 @@
       row.appendChild(title);
 
       var desc = repo.description ||
-        (repo.language ? 'язык: ' + repo.language : 'без описания');
+        (repo.language ? 'language: ' + repo.language : 'No description');
       row.appendChild(make('div', '— ' + desc,
         'margin-left:13px;color:#57606a;white-space:normal;overflow-wrap:anywhere;min-width:0;'));
 
@@ -209,11 +211,11 @@
       list.appendChild(row);
     }
 
-    var visible = Math.min(repos.length, MAX_VISIBLE);
+    var visible = Math.min(repos.length, pinned ? PINNED_MAX_VISIBLE : MAX_VISIBLE);
     for (var i = 0; i < visible; i++) addRepo(repos[i], i);
 
     if (repos.length > visible) {
-      var more = make('a', 'показать ещё ' + (repos.length - visible),
+      var more = make('a', 'Show ' + (repos.length - visible) + ' more',
         'color:#0969da;text-decoration:none;font-size:12px;' +
         'display:inline-block;margin-top:4px;cursor:pointer;');
       more.href = '#';
@@ -222,12 +224,12 @@
         ev.preventDefault();
         if (!expanded) {
           for (var j = visible; j < repos.length; j++) addRepo(repos[j], j);
-          more.textContent = 'свернуть';
+          more.textContent = 'Show less';
           expanded = true;
         } else {
           var rows = list.querySelectorAll('[data-wif-index]');
           for (var k = visible; k < rows.length; k++) rows[k].remove();
-          more.textContent = 'показать ещё ' + (repos.length - visible);
+          more.textContent = 'Show ' + (repos.length - visible) + ' more';
           expanded = false;
         }
       });
@@ -236,11 +238,11 @@
   }
 
   function loadRepos(panel, login, force) {
-    panel.appendChild(make('div', 'загрузка репозиториев…',
+    panel.appendChild(make('div', 'Loading repositories…',
       'color:#57606a;font-size:12px;'));
 
-    // Свои репозитории обновляются при каждой загрузке страницы,
-    // чтобы новые репо появлялись сразу, без ожидания окончания кэша
+    // Own repositories are refreshed on every page load so newly created
+    // repos show up immediately, without waiting for the cache to expire
     var alwaysFresh = panel.getAttribute('data-wif-pinned') === '1';
     var cached = (!alwaysFresh && !force) ? readCache(login) : null;
     if (cached) {
@@ -256,15 +258,15 @@
       .then(function (res) {
         if (!res.ok) {
           if (res.status === 403 || res.status === 429) {
-            throw new Error('лимит GitHub API исчерпан (попробуйте позже)');
+            throw new Error('GitHub API rate limit exceeded (try again later)');
           }
-          if (res.status === 404) throw new Error('профиль или репозитории недоступны');
-          throw new Error('ошибка GitHub API: HTTP ' + res.status);
+          if (res.status === 404) throw new Error('Profile or repositories unavailable');
+          throw new Error('GitHub API error: HTTP ' + res.status);
         }
         return res.json();
       })
       .then(function (repos) {
-        if (!Array.isArray(repos)) throw new Error('неожиданный ответ API');
+        if (!Array.isArray(repos)) throw new Error('Unexpected API response');
         repos.sort(function (a, b) { return new Date(b.updated_at) - new Date(a.updated_at); });
         var short = repos.map(function (r) {
           return {
@@ -301,7 +303,7 @@
     return panel;
   }
 
-  // Блок со своими репозиториями — первый по порядку, но не липкий при прокрутке
+  // Own panel stays first in the list, but is not sticky while scrolling
   function ensurePinned(container) {
     if (!ownerLogin || pinnedPanel) return;
     if (document.querySelector('[data-wif-pinned="1"]')) {
@@ -320,8 +322,8 @@
     }
   }
 
-  // Дублируем CSS инлайн-стилями: даже если внешний <style> не применился,
-  // аватар и имя пользователя не должны наезжать друг на друга
+  // Mirror the CSS with inline styles: even if the external <style> is not
+  // applied, avatars and user names must never overlap
   function fixRowLayout(row) {
     var cells = row.children;
     if (cells.length < 2) return;
@@ -341,7 +343,7 @@
   }
 
   function processRow(row, login, container) {
-    if (isOwner(login)) return; // свой пользователь уже вынесен наверх
+    if (isOwner(login)) return; // the owner already has a pinned panel
 
     row.setAttribute('data-wif-processed', login);
     fixRowLayout(row);
@@ -353,7 +355,7 @@
 
     var panel = makePanel(login, false);
 
-    // Оборачиваем строку пользователя и его панель в одну карточку
+    // Wrap the user row and its panel into a single card
     var card = make('div', null, 'min-width:0;max-width:100%;box-sizing:border-box;');
     card.setAttribute('data-wif-card', login);
     card.classList.add('wif-card');
@@ -394,7 +396,7 @@
     cleanupDuplicates();
     keepPinnedTop(container);
 
-    // Применяем исправление вёрстки и к строкам, созданным старой версией
+    // Apply the layout fix to rows created by an older version as well
     var oldRows = document.querySelectorAll('.d-table[data-wif-processed]');
     for (var j = 0; j < oldRows.length; j++) fixRowLayout(oldRows[j]);
 
@@ -416,7 +418,8 @@
       var login = match[1];
       if (isOwner(login)) continue;
 
-      // В строке две ссылки (аватар и имя): помечаем сразу, чтобы не было дублей
+      // Each row has two links (avatar and name): mark it immediately so the
+      // second link cannot queue a duplicate
       if (row.getAttribute('data-wif-queued') === login) continue;
       if (row.getAttribute('data-wif-processed') === login) continue;
       var next = row.nextElementSibling;
